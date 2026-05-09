@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import api from '../config/api'
-import { getEcho, leaveChannel } from '../config/echo'
+import { getEcho, leaveChannel, resetEcho } from '../config/echo'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -133,6 +133,7 @@ export const useChatStore = defineStore('chat', {
       this.typingUsers = {}
       this.listeners.forEach((l) => leaveChannel(`room.${l.roomId}`))
       this.listeners = []
+      resetEcho()
     },
   },
 })

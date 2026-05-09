@@ -14,9 +14,23 @@ export function getEcho() {
     cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap1',
     forceTLS: true,
     authEndpoint: `${import.meta.env.VITE_API_URL}/broadcasting/auth`,
+    auth: {
+      headers: {
+        get Authorization() {
+          return `Bearer ${localStorage.getItem('token')}`
+        },
+      },
+    },
   })
 
   return echo
+}
+
+export function resetEcho() {
+  if (echo) {
+    echo.disconnect()
+    echo = null
+  }
 }
 
 export function leaveChannel(channel) {
