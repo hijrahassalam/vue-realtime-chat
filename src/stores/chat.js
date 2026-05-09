@@ -99,18 +99,18 @@ export const useChatStore = defineStore('chat', {
       const echo = getEcho()
       const channel = echo.private(`room.${roomId}`)
 
-      channel.listen('MessageSent', (e) => {
+      channel.listen('.message.sent', (e) => {
         if (!this.messages.find((m) => m.id === e.message.id)) {
           this.messages.push(e.message)
         }
       })
 
-      channel.listen('UserTyping', (e) => {
+      channel.listen('.user.typing', (e) => {
         this.typingUsers[e.user_id] = Date.now()
         setTimeout(() => delete this.typingUsers[e.user_id], 3000)
       })
 
-      channel.listen('UserJoined', (e) => {
+      channel.listen('.user.joined', (e) => {
         if (!this.participants.find((p) => p.id === e.user.id)) {
           this.participants.push(e.user)
         }
