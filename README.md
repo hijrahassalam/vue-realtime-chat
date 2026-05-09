@@ -9,7 +9,7 @@
 ![ESLint](https://img.shields.io/badge/ESLint-Linting-4B32C3?style=flat&logo=eslint&logoColor=white)
 ![Netlify](https://img.shields.io/badge/Netlify-Deployment-00C7B7?style=flat&logo=netlify&logoColor=white)
 
-**Live App:** [https://vue-realtime-chat.netlify.app](https://vue-realtime-chat.netlify.app)
+**Live App:** [https://vue-realtime-chat-fe.netlify.app](https://vue-realtime-chat-fe.netlify.app)
 
 **Backend API:** [https://laravel-realtime-chat-api-production.up.railway.app/api](https://laravel-realtime-chat-api-production.up.railway.app/api)
 
