@@ -5,11 +5,13 @@ import { getEcho, leaveChannel } from '../config/echo'
 export const useChatStore = defineStore('chat', {
   state: () => ({
     rooms: [],
+    availableRooms: [],
     currentRoom: null,
     messages: [],
     participants: [],
     typingUsers: {},
     loading: false,
+    loadingAvailable: false,
     error: null,
     listeners: [],
   }),
@@ -19,7 +21,7 @@ export const useChatStore = defineStore('chat', {
       this.loading = true
       try {
         const { data } = await api.get('/rooms')
-        this.rooms = data
+        this.rooms = Array.isArray(data) ? data : (data?.data ?? [])
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to fetch rooms'
       } finally {
@@ -27,26 +29,49 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    async fetchAvailableRooms() {
+      this.loadingAvailable = true
+      try {
+        const { data } = await api.get('/rooms/available')
+        this.availableRooms = Array.isArray(data) ? data : (data?.data ?? [])
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to fetch available rooms'
+      } finally {
+        this.loadingAvailable = false
+      }
+    },
+
     async createRoom(name, description = '', isPrivate = false) {
       const { data } = await api.post('/rooms', { name, description, is_private: isPrivate })
-      this.rooms.unshift(data)
-      return data
+      const room = data?.data ?? data
+      this.rooms.unshift(room)
+      return room
     },
 
     async fetchRoom(id) {
       const { data } = await api.get(`/rooms/${id}`)
-      this.currentRoom = data
-      this.participants = data.participants || []
-      return data
+      const room = data?.data ?? data
+      this.currentRoom = room
+      this.participants = room.participants || []
+      return room
     },
 
     async joinRoom(id) {
       await api.post(`/rooms/${id}/join`)
+      const idx = this.availableRooms.findIndex((r) => r.id === id)
+      if (idx !== -1) {
+        const [room] = this.availableRooms.splice(idx, 1)
+        this.rooms.unshift(room)
+      }
     },
 
     async leaveRoom(id) {
       await api.post(`/rooms/${id}/leave`)
-      this.rooms = this.rooms.filter((r) => r.id !== id)
+      const idx = this.rooms.findIndex((r) => r.id === id)
+      if (idx !== -1) {
+        const [room] = this.rooms.splice(idx, 1)
+        this.availableRooms.unshift(room)
+      }
       if (this.currentRoom?.id === id) {
         this.currentRoom = null
         this.messages = []
@@ -55,13 +80,15 @@ export const useChatStore = defineStore('chat', {
 
     async fetchMessages(roomId) {
       const { data } = await api.get(`/rooms/${roomId}/messages`)
-      this.messages = data.data || data
+      const messages = data?.data ?? data
+      this.messages = Array.isArray(messages) ? messages : []
     },
 
     async sendMessage(roomId, body) {
       const { data } = await api.post(`/rooms/${roomId}/messages`, { body })
-      this.messages.push(data)
-      return data
+      const message = data?.data ?? data
+      this.messages.push(message)
+      return message
     },
 
     async markRead(roomId, messageId) {
@@ -99,6 +126,7 @@ export const useChatStore = defineStore('chat', {
 
     reset() {
       this.rooms = []
+      this.availableRooms = []
       this.currentRoom = null
       this.messages = []
       this.participants = []

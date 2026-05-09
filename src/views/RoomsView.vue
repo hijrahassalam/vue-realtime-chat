@@ -30,42 +30,91 @@
         </button>
       </div>
 
-      <!-- Loading -->
-      <div v-if="chat.loading" class="text-center py-8 text-gray-500">Loading rooms...</div>
+      <!-- Tabs -->
+      <div class="flex gap-1 mb-6 bg-gray-200 rounded-lg p-1">
+        <button
+          @click="activeTab = 'my'"
+          class="flex-1 py-2 text-sm font-medium rounded-md transition"
+          :class="activeTab === 'my' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        >
+          My Rooms
+        </button>
+        <button
+          @click="activeTab = 'available'"
+          class="flex-1 py-2 text-sm font-medium rounded-md transition"
+          :class="activeTab === 'available' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        >
+          Available Rooms
+        </button>
+      </div>
 
       <!-- Error -->
       <p v-if="chat.error" class="text-red-500 mb-4 text-sm">{{ chat.error }}</p>
 
-      <!-- Room List -->
-      <div v-if="!chat.loading" class="grid gap-4">
-        <router-link
-          v-for="room in chat.rooms"
-          :key="room.id"
-          :to="`/rooms/${room.id}`"
-          class="block bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition border border-gray-200"
-        >
-          <div class="flex items-center justify-between">
+      <!-- My Rooms Tab -->
+      <div v-if="activeTab === 'my'">
+        <div v-if="chat.loading" class="text-center py-8 text-gray-500">Loading rooms...</div>
+
+        <div v-else class="grid gap-4">
+          <router-link
+            v-for="room in chat.rooms"
+            :key="room.id"
+            :to="`/rooms/${room.id}`"
+            class="block bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition border border-gray-200"
+          >
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="font-semibold text-gray-800">{{ room.name }}</h3>
+                <p v-if="room.description" class="text-sm text-gray-500 mt-1">{{ room.description }}</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span v-if="room.is_private" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Private</span>
+                <span class="text-sm text-gray-400">→</span>
+              </div>
+            </div>
+          </router-link>
+        </div>
+
+        <div v-if="!chat.loading && chat.rooms.length === 0" class="text-center py-12 text-gray-500">
+          <p>No rooms yet. Create one to get started!</p>
+        </div>
+      </div>
+
+      <!-- Available Rooms Tab -->
+      <div v-if="activeTab === 'available'">
+        <div v-if="chat.loadingAvailable" class="text-center py-8 text-gray-500">Loading rooms...</div>
+
+        <div v-else class="grid gap-4">
+          <div
+            v-for="room in chat.availableRooms"
+            :key="room.id"
+            class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between"
+          >
             <div>
               <h3 class="font-semibold text-gray-800">{{ room.name }}</h3>
               <p v-if="room.description" class="text-sm text-gray-500 mt-1">{{ room.description }}</p>
+              <p class="text-xs text-gray-400 mt-1">{{ room.participants?.length || 0 }} participants</p>
             </div>
-            <div class="flex items-center gap-2">
-              <span v-if="room.is_private" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Private</span>
-              <span class="text-sm text-gray-400">→</span>
-            </div>
+            <button
+              @click="joinRoom(room.id)"
+              :disabled="joiningId === room.id"
+              class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 transition"
+            >
+              {{ joiningId === room.id ? 'Joining...' : 'Join' }}
+            </button>
           </div>
-        </router-link>
-      </div>
+        </div>
 
-      <div v-if="!chat.loading && chat.rooms.length === 0" class="text-center py-12 text-gray-500">
-        <p>No rooms yet. Create one to get started!</p>
+        <div v-if="!chat.loadingAvailable && chat.availableRooms.length === 0" class="text-center py-12 text-gray-500">
+          <p>No available rooms to join.</p>
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useChatStore } from '../stores/chat'
@@ -76,8 +125,18 @@ const chat = useChatStore()
 
 const newRoomName = ref('')
 const creating = ref(false)
+const activeTab = ref('my')
+const joiningId = ref(null)
 
-onMounted(() => chat.fetchRooms())
+onMounted(() => {
+  chat.fetchRooms()
+  chat.fetchAvailableRooms()
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'my') chat.fetchRooms()
+  else chat.fetchAvailableRooms()
+})
 
 async function createRoom() {
   if (!newRoomName.value.trim()) return
@@ -89,6 +148,18 @@ async function createRoom() {
     // error shown via store
   } finally {
     creating.value = false
+  }
+}
+
+async function joinRoom(id) {
+  joiningId.value = id
+  try {
+    await chat.joinRoom(id)
+    router.push(`/rooms/${id}`)
+  } catch {
+    // error shown via store
+  } finally {
+    joiningId.value = null
   }
 }
 
