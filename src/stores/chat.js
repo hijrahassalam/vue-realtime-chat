@@ -18,6 +18,7 @@ export const useChatStore = defineStore('chat', {
     subscribedRooms: [],
     connectionStatus: 'disconnected', // 'connecting' | 'connected' | 'disconnected'
     pendingMessages: [], // optimistic messages awaiting server confirmation
+    tempIdToServerId: {}, // map temp ID -> server ID for dedup
   }),
 
   actions: {
@@ -113,6 +114,7 @@ export const useChatStore = defineStore('chat', {
         const idx = this.messages.findIndex((m) => m.id === tempId)
         if (idx !== -1) {
           this.messages[idx] = { ...message, status: 'sent' }
+          this.tempIdToServerId[tempId] = message.id
         }
         this.pendingMessages = this.pendingMessages.filter((id) => id !== tempId)
         return message
@@ -158,9 +160,12 @@ export const useChatStore = defineStore('chat', {
       })
 
       channel.listen('.message.sent', (e) => {
-        if (!this.messages.find((m) => m.id === e.message.id)) {
-          this.messages.push(e.message)
-        }
+        // Skip if already in messages (could be our own optimistic message already added)
+        if (this.messages.find((m) => m.id === e.message.id)) return
+        // Skip if this server ID is mapped from a pending temp ID (own message, already added optimistically)
+        const isOwnPending = Object.values(this.tempIdToServerId).includes(e.message.id)
+        if (isOwnPending) return
+        this.messages.push(e.message)
       })
 
       channel.listen('.user.typing', (e) => {
@@ -194,6 +199,7 @@ export const useChatStore = defineStore('chat', {
       this.listeners = []
       this.subscribedRooms = []
       this.pendingMessages = []
+      this.tempIdToServerId = {}
       this.connectionStatus = 'disconnected'
       resetEcho()
     },
