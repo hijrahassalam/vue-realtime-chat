@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import api from '../config/api'
 import { getEcho, leaveChannel, resetEcho } from '../config/echo'
+import { useAuthStore } from './auth'
 
 export const useChatStore = defineStore('chat', {
   state: () => ({
@@ -100,6 +101,8 @@ export const useChatStore = defineStore('chat', {
       const channel = echo.private(`room.${roomId}`)
 
       channel.listen('.message.sent', (e) => {
+        // Skip if from self (sender already has message from POST response)
+        if (e.message.user_id === useAuthStore().user.id) return
         if (!this.messages.find((m) => m.id === e.message.id)) {
           this.messages.push(e.message)
         }
