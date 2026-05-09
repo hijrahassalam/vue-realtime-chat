@@ -16,6 +16,8 @@ export const useChatStore = defineStore('chat', {
     error: null,
     listeners: [],
     subscribedRooms: [],
+    connectionStatus: 'disconnected', // 'connecting' | 'connected' | 'disconnected'
+    pendingMessages: [], // optimistic messages awaiting server confirmation
   }),
 
   actions: {
@@ -87,14 +89,54 @@ export const useChatStore = defineStore('chat', {
     },
 
     async sendMessage(roomId, body) {
-      const { data } = await api.post(`/rooms/${roomId}/messages`, { body })
-      const message = data?.data ?? data
-      this.messages.push(message)
-      return message
+      const authStore = useAuthStore()
+      const tempId = `temp-${Date.now()}`
+
+      // Optimistic: add message immediately
+      const optimisticMessage = {
+        id: tempId,
+        body,
+        user_id: authStore.user.id,
+        user: authStore.user,
+        room_id: roomId,
+        created_at: new Date().toISOString(),
+        status: 'sending', // optimistic
+      }
+      this.messages.push(optimisticMessage)
+      this.pendingMessages.push(tempId)
+
+      try {
+        const { data } = await api.post(`/rooms/${roomId}/messages`, { body })
+        const message = data?.data ?? data
+
+        // Replace optimistic message with server response
+        const idx = this.messages.findIndex((m) => m.id === tempId)
+        if (idx !== -1) {
+          this.messages[idx] = { ...message, status: 'sent' }
+        }
+        this.pendingMessages = this.pendingMessages.filter((id) => id !== tempId)
+        return message
+      } catch (err) {
+        // Mark as failed
+        const idx = this.messages.findIndex((m) => m.id === tempId)
+        if (idx !== -1) {
+          this.messages[idx] = { ...this.messages[idx], status: 'failed' }
+        }
+        this.pendingMessages = this.pendingMessages.filter((id) => id !== tempId)
+        throw err
+      }
     },
 
     async markRead(roomId, messageId) {
       await api.post(`/rooms/${roomId}/messages/${messageId}/read`)
+    },
+
+    async retryMessage(tempId) {
+      const msg = this.messages.find((m) => m.id === tempId)
+      if (!msg || msg.status !== 'failed') return
+      // Remove failed message and resend
+      this.messages = this.messages.filter((m) => m.id !== tempId)
+      await this.sendMessage(msg.room_id, msg.body)
     },
 
     listenToRoom(roomId) {
@@ -103,6 +145,17 @@ export const useChatStore = defineStore('chat', {
 
       const echo = getEcho()
       const channel = echo.private(`room.${roomId}`)
+
+      // Track connection state
+      echo.connector.pusher.connection.bind('connected', () => {
+        this.connectionStatus = 'connected'
+      })
+      echo.connector.pusher.connection.bind('disconnected', () => {
+        this.connectionStatus = 'disconnected'
+      })
+      echo.connector.pusher.connection.bind('connecting', () => {
+        this.connectionStatus = 'connecting'
+      })
 
       channel.listen('.message.sent', (e) => {
         if (!this.messages.find((m) => m.id === e.message.id)) {
@@ -140,6 +193,8 @@ export const useChatStore = defineStore('chat', {
       this.listeners.forEach((l) => leaveChannel(`room.${l.roomId}`))
       this.listeners = []
       this.subscribedRooms = []
+      this.pendingMessages = []
+      this.connectionStatus = 'disconnected'
       resetEcho()
     },
   },

@@ -15,7 +15,20 @@
             </div>
             <div>
               <h1 class="font-semibold text-gray-900">{{ chat.currentRoom?.name }}</h1>
-              <p class="text-xs text-gray-500">{{ chat.participants.length }} members</p>
+              <div class="flex items-center gap-2">
+                <p class="text-xs text-gray-500">{{ chat.participants.length }} members</p>
+                <span class="flex items-center gap-1">
+                  <span
+                    class="w-1.5 h-1.5 rounded-full"
+                    :class="{
+                      'bg-green-400': chat.connectionStatus === 'connected',
+                      'bg-yellow-400 animate-pulse': chat.connectionStatus === 'connecting',
+                      'bg-red-400': chat.connectionStatus === 'disconnected',
+                    }"
+                  />
+                  <span class="text-[10px] text-gray-400 capitalize">{{ chat.connectionStatus }}</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -82,13 +95,28 @@
               <p class="leading-relaxed">{{ msg.body }}</p>
             </div>
 
-            <!-- Time -->
-            <p
-              class="text-[10px] mt-1 px-1"
-              :class="msg.user_id === auth.user?.id ? 'text-right text-gray-400' : 'text-gray-400'"
-            >
-              {{ formatTime(msg.created_at) }}
-            </p>
+            <!-- Time + Status -->
+            <div class="flex items-center gap-1 mt-0.5 px-1">
+              <p
+                class="text-[10px]"
+                :class="msg.user_id === auth.user?.id ? 'text-gray-400' : 'text-gray-400'"
+              >
+                {{ formatTime(msg.created_at) }}
+              </p>
+              <!-- Message status for sender -->
+              <span v-if="msg.user_id === auth.user?.id" class="flex items-center">
+                <svg v-if="msg.status === 'sending'" class="w-3 h-3 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <svg v-else-if="msg.status === 'sent'" class="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <button v-else-if="msg.status === 'failed'" @click="chat.retryMessage(msg.id)" class="text-[10px] text-red-500 hover:text-red-600 underline">
+                  Retry
+                </button>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -199,10 +227,13 @@ function isConsecutive(index) {
   return prev.user_id === curr.user_id
 }
 
-function scrollToBottom() {
+function scrollToBottom(smooth = true) {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      messagesContainer.value.scrollTo({
+        top: messagesContainer.value.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      })
     }
   })
 }
@@ -222,7 +253,7 @@ async function sendMessage() {
   nextTick(() => autoResize())
   try {
     await chat.sendMessage(route.params.id, body)
-    scrollToBottom()
+    scrollToBottom(false) // initial load: no animation
   } catch {
     messageText.value = body
   }
@@ -242,7 +273,7 @@ onMounted(async () => {
     await chat.joinRoom(route.params.id)
     await chat.fetchMessages(route.params.id)
     chat.listenToRoom(route.params.id)
-    scrollToBottom()
+    scrollToBottom(false) // initial load: no animation
   } catch {
     router.push('/rooms')
   } finally {
