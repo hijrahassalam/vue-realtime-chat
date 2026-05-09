@@ -253,7 +253,8 @@ async function sendMessage() {
   nextTick(() => autoResize())
   try {
     await chat.sendMessage(route.params.id, body)
-    scrollToBottom(false) // initial load: no animation
+    await nextTick()
+    scrollToBottom(false) // instant for sent message
   } catch {
     messageText.value = body
   }
@@ -273,7 +274,9 @@ onMounted(async () => {
     await chat.joinRoom(route.params.id)
     await chat.fetchMessages(route.params.id)
     chat.listenToRoom(route.params.id)
-    scrollToBottom(false) // initial load: no animation
+    // Wait for messages to fully render before scrolling
+    await nextTick()
+    setTimeout(() => scrollToBottom(false), 50)
   } catch {
     router.push('/rooms')
   } finally {
