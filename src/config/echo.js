@@ -6,15 +6,14 @@ let echo = null
 export function getEcho() {
   if (echo) return echo
 
+  window.Pusher = Pusher
+
   echo = new Echo({
-    broadcaster: 'reverb',
-    key: import.meta.env.VITE_REVERB_APP_KEY || 'meridian-chat-key',
-    wsHost: import.meta.env.VITE_REVERB_HOST || 'laravel-realtime-chat-api.railway.app',
-    wsPort: import.meta.env.VITE_REVERB_PORT || 443,
-    wssPort: import.meta.env.VITE_REVERB_PORT || 443,
+    broadcaster: 'pusher',
+    key: import.meta.env.VITE_PUSHER_APP_KEY || 'app-key',
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'ap1',
     forceTLS: true,
-    disableStats: true,
-    authEndpoint: `${import.meta.env.VITE_API_URL || 'https://laravel-realtime-chat-api.railway.app/api'}/broadcasting/auth`,
+    authEndpoint: `${import.meta.env.VITE_API_URL}/broadcasting/auth`,
   })
 
   return echo
