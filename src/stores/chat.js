@@ -15,6 +15,7 @@ export const useChatStore = defineStore('chat', {
     loadingAvailable: false,
     error: null,
     listeners: [],
+    subscribedRooms: [],
   }),
 
   actions: {
@@ -97,12 +98,13 @@ export const useChatStore = defineStore('chat', {
     },
 
     listenToRoom(roomId) {
+      if (this.subscribedRooms.includes(roomId)) return
+      this.subscribedRooms.push(roomId)
+
       const echo = getEcho()
       const channel = echo.private(`room.${roomId}`)
 
       channel.listen('.message.sent', (e) => {
-        // Skip if from self (sender already has message from POST response)
-        if (e.message.user_id === useAuthStore().user.id) return
         if (!this.messages.find((m) => m.id === e.message.id)) {
           this.messages.push(e.message)
         }
@@ -125,6 +127,7 @@ export const useChatStore = defineStore('chat', {
     unlistenRoom(roomId) {
       leaveChannel(`room.${roomId}`)
       this.listeners = this.listeners.filter((l) => l.roomId !== roomId)
+      this.subscribedRooms = this.subscribedRooms.filter((id) => id !== roomId)
     },
 
     reset() {
@@ -136,6 +139,7 @@ export const useChatStore = defineStore('chat', {
       this.typingUsers = {}
       this.listeners.forEach((l) => leaveChannel(`room.${l.roomId}`))
       this.listeners = []
+      this.subscribedRooms = []
       resetEcho()
     },
   },
